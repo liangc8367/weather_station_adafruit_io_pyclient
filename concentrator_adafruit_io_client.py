@@ -9,6 +9,8 @@ import os
 import sys
 import serial
 import re
+from datetime import datetime
+
 from Adafruit_IO import Client, Data, Feed, Group, RequestError
 
 def get_ioclient_key():
@@ -47,11 +49,17 @@ aio = Client(io_client_key)
 
 # open port to the concentrator of weather hub
 #   serial config: 115200/8/N/1
-hub_serial = serial.Serial('/dev/ttyACM2', 115200)
+#// hub_serial = serial.Serial('/dev/ttyACM2', 115200)
+hub_serial = serial.Serial('/dev/serial0', 115200)
 send_to_adafruit = True
+send_to_adafruit = False
+
+print str(datetime.now())
+sys.stdout.write("Waiting for IoT Hub...\n")
 
 while True:
     line = hub_serial.readline()
+    print str(datetime.now())
     sys.stdout.write('line: ' + line)
     data = parse_line(hub_info_pattern, line)
     
