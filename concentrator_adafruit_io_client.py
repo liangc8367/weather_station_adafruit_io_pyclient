@@ -40,7 +40,7 @@ def parse_line(pattern, line):
     """
     matched = re.match(r'\[.*\]: (0x[0-9a-fA-F]+), ([-+]?\d+), (\d+), (\d+), (\d+), (\d+), (\d+)', line)
     if matched == None:
-        print("no match!\n")
+        sys.stdout.write("no match!\n")
         raise RuntimeError("Unable to parse input line!")
     return matched.group(0), matched.group(1), matched.group(2),matched.group(3), matched.group(4), matched.group(5), matched.group(6), matched.group(7)    
 
@@ -85,7 +85,7 @@ def main3():
     conn.close()
 
 def main():
-    print("Open database %s\n." % sqlite_file)
+    sys.stdout.write("Open database %s.\n" % sqlite_file)
     create_sensor_data_table()
     
     conn = sqlite3.connect(sqlite_file)
@@ -94,13 +94,13 @@ def main():
         + '(addr, rssi, cpu_temp, battery_volt, temp, pressure, humidity)' \
         + "values(%s, %d, %d, %.2f, %.2f, %.4f, %.2f)"
         
-    print("Open serial port %s with baud rate %d.\n" % (serial_port, baud_rate))
+    sys.stdout.write("Open serial port %s with baud rate %d.\n" % (serial_port, serial_baud))
     # open port to the concentrator of weather hub
     #   serial config: 115200/8/N/1
     #// hub_serial = serial.Serial('/dev/ttyACM2', 115200)
     hub_serial = serial.Serial(serial_port, serial_baud)
 
-    print("Open Adafruit IO.\n")
+    sys.stdout.write("Open Adafruit IO.\n")
     # Set to your Adafruit IO key.
     io_client_key = get_ioclient_key()
     # Create an instance of the REST client.
@@ -111,27 +111,27 @@ def main():
     
     send_to_adafruit = False
     
-    print(str(datetime.now()))
-    print("Waiting for IoT Hub...\n")
+    sys.stdout.write(str(datetime.now()))
+    sys.stdout.write("Waiting for IoT Hub...\n")
     
     while True:
         try:
             line = hub_serial.readline()
-            print('line: ' + line)
+            sys.stdout.write('line: ' + line)
             data = parse_line(hub_info_pattern, line)
-            print( type(data) )
-            print( data )
+            #sys.stdout.write( type(data) )
+            #sys.stdout.write( data )
             if len(data) != 8:
                 raise ValueError('Oops, invalid input from concentrator, # of data was %d!' % len(data))
-            print('%s :' % str(datetime.now()))
-            print('addr = %s, ' % data[1])
-            print('rssi = %d, '% int(data[2]))
-            print('cpu_temp = %.2f, ' % (int(data[3])/1.0))
-            print('battery_volt = %.2f, ' % (int(data[4])/256.0)) 
-            print('temp = %.2f, ' % (int(data[5])/100.0))
-            print('pressure = %.4f, ' % (int(data[6])/10000.0))
-            print('humidity = %.2f' % (int(data[7])/1000.0))
-            print('\n')
+            sys.stdout.write('%s :' % str(datetime.now()))
+            sys.stdout.write('addr = %s, ' % data[1])
+            sys.stdout.write('rssi = %d, '% int(data[2]))
+            sys.stdout.write('cpu_temp = %.2f, ' % (int(data[3])/1.0))
+            sys.stdout.write('battery_volt = %.2f, ' % (int(data[4])/256.0)) 
+            sys.stdout.write('temp = %.2f, ' % (int(data[5])/100.0))
+            sys.stdout.write('pressure = %.4f, ' % (int(data[6])/10000.0))
+            sys.stdout.write('humidity = %.2f' % (int(data[7])/1000.0))
+            sys.stdout.write('\n')
             
             # write data into table
             c = conn.cursor()
@@ -147,8 +147,8 @@ def main():
                 aio.send('pressure', int(data[6])/10000.0)
                 aio.send('humidity', int(data[7])/1000.0)
         except Exception as e:
-            print('Oops, exception: ')
-            print( e )    
+            sys.stdout.write('Oops, exception: ')
+            sys.stdout.write( e )    
 
 if __name__ == "__main__":
     main()
