@@ -44,7 +44,7 @@ def parse_line(pattern, line):
         raise RuntimeError("Unable to parse input line!")
     return matched.group(0), matched.group(1), matched.group(2),matched.group(3), matched.group(4), matched.group(5), matched.group(6), matched.group(7)    
 
-sqlite_file = "iot_sensor_data.db"
+sqlite_file = "/home/pi/iot_server/iot_sensor_data.db"
 sensor_table = "sensor_data"
 serial_port = '/dev/serial0'
 serial_baud = 115200
@@ -86,6 +86,7 @@ def main3():
 
 def main():
     sys.stdout.write("Open database %s.\n" % sqlite_file)
+    sys.stdout.flush()
     create_sensor_data_table()
     
     conn = sqlite3.connect(sqlite_file)
@@ -95,12 +96,14 @@ def main():
         + "values(%s, %d, %d, %.2f, %.2f, %.4f, %.2f)"
         
     sys.stdout.write("Open serial port %s with baud rate %d.\n" % (serial_port, serial_baud))
+    sys.stdout.flush()
     # open port to the concentrator of weather hub
     #   serial config: 115200/8/N/1
     #// hub_serial = serial.Serial('/dev/ttyACM2', 115200)
     hub_serial = serial.Serial(serial_port, serial_baud)
 
     sys.stdout.write("Open Adafruit IO.\n")
+    sys.stdout.flush()
     # Set to your Adafruit IO key.
     io_client_key = get_ioclient_key()
     # Create an instance of the REST client.
@@ -113,6 +116,7 @@ def main():
     
     sys.stdout.write(str(datetime.now()))
     sys.stdout.write("Waiting for IoT Hub...\n")
+    sys.stdout.flush()
     
     while True:
         try:
@@ -123,7 +127,7 @@ def main():
             #sys.stdout.write( data )
             if len(data) != 8:
                 raise ValueError('Oops, invalid input from concentrator, # of data was %d!' % len(data))
-            sys.stdout.write('%s :' % str(datetime.now()))
+            # sys.stdout.write('%s :' % str(datetime.now()))
             sys.stdout.write('addr = %s, ' % data[1])
             sys.stdout.write('rssi = %d, '% int(data[2]))
             sys.stdout.write('cpu_temp = %.2f, ' % (int(data[3])/1.0))
@@ -146,9 +150,11 @@ def main():
                 aio.send('temp', int(data[5])/100.0)
                 aio.send('pressure', int(data[6])/10000.0)
                 aio.send('humidity', int(data[7])/1000.0)
+                
+            sys.stdout.flush()
         except Exception as e:
             sys.stdout.write('Oops, exception: ')
-            sys.stdout.write( e )    
+            print( e )    
 
 if __name__ == "__main__":
     main()
