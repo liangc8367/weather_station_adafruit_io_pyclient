@@ -10,6 +10,7 @@ import sys
 import serial
 import re
 from datetime import datetime
+import sqlite3
 
 from Adafruit_IO import Client, Data, Feed, Group, RequestError
 
@@ -39,59 +40,117 @@ def parse_line(pattern, line):
     """
     matched = re.match(r'\[.*\]: (0x[0-9a-fA-F]+), ([-+]?\d+), (\d+), (\d+), (\d+), (\d+), (\d+)', line)
     if matched == None:
-        print "no match!\n"
+        print("no match!\n")
         raise RuntimeError("Unable to parse input line!")
     return matched.group(0), matched.group(1), matched.group(2),matched.group(3), matched.group(4), matched.group(5), matched.group(6), matched.group(7)    
 
+sqlite_file = "iot_sensor_data.db"
+sensor_table = "sensor_data"
+serial_port = '/dev/serial0'
+serial_baud = 115200
 
-# simple regex pattern to parse signed/unsigned integers    
-hub_info_pattern = re.compile('[-+]?[0-9]+') 
+#addr = 0x00124b000e09465a, rssi = -36, cpu_temp = 19.00, battery_volt = 2.34, temp = 21.08, pressure = 977.6121, humidity = 37.77
 
-# Set to your Adafruit IO key.
-io_client_key = get_ioclient_key()
-# Create an instance of the REST client.
-aio = Client(io_client_key)
-
-# open port to the concentrator of weather hub
-#   serial config: 115200/8/N/1
-#// hub_serial = serial.Serial('/dev/ttyACM2', 115200)
-hub_serial = serial.Serial('/dev/serial0', 115200)
-send_to_adafruit = True
-
-print str(datetime.now())
-sys.stdout.write("Waiting for IoT Hub...\n")
-
-while True:
-    try:
-        line = hub_serial.readline()
-        sys.stdout.write('line: ' + line)
-        data = parse_line(hub_info_pattern, line)
-        print type(data)
-        print data
-        if len(data) != 8:
-            raise ValueError('Oops, invalid input from concentrator, # of data was %d!' % len(data))
-        sys.stdout.write('%s :' % str(datetime.now()))
-        sys.stdout.write('addr = %s, ' % data[1])
-        sys.stdout.write('rssi = %d, '% int(data[2]))
-        sys.stdout.write('cpu_temp = %.2f, ' % (int(data[3])/1.0))
-        sys.stdout.write('battery_volt = %.2f, ' % (int(data[4])/256.0)) 
-        sys.stdout.write('temp = %.2f, ' % (int(data[5])/100.0))
-        sys.stdout.write('pressure = %.4f, ' % (int(data[6])/10000.0))
-        sys.stdout.write('humidity = %.2f' % (int(data[7])/1000.0))
-        sys.stdout.write('\n')
+def create_sensor_data_table():
+    # setup database
+    conn = sqlite3.connect(sqlite_file)
+    c = conn.cursor()
     
-        if send_to_adafruit:
-            aio.send('rssi', int(data[2]))
-            aio.send('cpu_temp', int(data[3])/1.0)
-            aio.send('battery_volt', int(data[4])/256.0) 
-            aio.send('temp', int(data[5])/100.0)
-            aio.send('pressure', int(data[6])/10000.0)
-            aio.send('humidity', int(data[7])/1000.0)
-    except Exception, e:
-        sys.stdout.write('Oops, exception: ')
-        print e
-# # Send a value to the feed 'Test'.  This will create the feed if it doesn't
-# # exist already.
-# aio.send('Test', 42)
+    sql = 'create table if not exists ' + sensor_table \
+        + '(tm timestamp default current_timestamp, ' \
+        + ' addr char(18), ' \
+        + ' rssi integer,  '\
+        + ' cpu_temp decimal(5,2),'\
+        + '  battery_volt decimal(3,2), '\
+        + ' temp decimal(5,2),' \
+        + ' pressure decimal(8,4), '\
+        + ' humidity decimal(5,2) '\
+        + ')'
+            
+    c.execute(sql)
+    c.close()
+    conn.close()
+    
+def main3():
+    create_sensor_data_table()
+    conn = sqlite3.connect(sqlite_file)
+    c = conn.cursor()
+    
+    insert_stmt = 'insert into ' + sensor_table \
+        + '(addr, rssi, cpu_temp, battery_volt, temp, pressure, humidity)' \
+        + "values('0x1234', -20, 23, 3.25, 22.34, 837.231, 64.32)"
+        
+    c.execute(insert_stmt)
+    conn.commit()
+    conn.close()
+
+def main():
+    print("Open database %s\n." % sqlite_file)
+    create_sensor_data_table()
+    
+    conn = sqlite3.connect(sqlite_file)
+    
+    insert_stmt_stem = 'insert into ' + sensor_table \
+        + '(addr, rssi, cpu_temp, battery_volt, temp, pressure, humidity)' \
+        + "values(%s, %d, %d, %.2f, %.2f, %.4f, %.2f)"
+        
+    print("Open serial port %s with baud rate %d.\n" % (serial_port, baud_rate))
+    # open port to the concentrator of weather hub
+    #   serial config: 115200/8/N/1
+    #// hub_serial = serial.Serial('/dev/ttyACM2', 115200)
+    hub_serial = serial.Serial(serial_port, serial_baud)
+
+    print("Open Adafruit IO.\n")
+    # Set to your Adafruit IO key.
+    io_client_key = get_ioclient_key()
+    # Create an instance of the REST client.
+    aio = Client(io_client_key)
+    
+    # simple regex pattern to parse signed/unsigned integers    
+    hub_info_pattern = re.compile('[-+]?[0-9]+') 
+    
+    send_to_adafruit = False
+    
+    print(str(datetime.now()))
+    print("Waiting for IoT Hub...\n")
+    
+    while True:
+        try:
+            line = hub_serial.readline()
+            print('line: ' + line)
+            data = parse_line(hub_info_pattern, line)
+            print( type(data) )
+            print( data )
+            if len(data) != 8:
+                raise ValueError('Oops, invalid input from concentrator, # of data was %d!' % len(data))
+            print('%s :' % str(datetime.now()))
+            print('addr = %s, ' % data[1])
+            print('rssi = %d, '% int(data[2]))
+            print('cpu_temp = %.2f, ' % (int(data[3])/1.0))
+            print('battery_volt = %.2f, ' % (int(data[4])/256.0)) 
+            print('temp = %.2f, ' % (int(data[5])/100.0))
+            print('pressure = %.4f, ' % (int(data[6])/10000.0))
+            print('humidity = %.2f' % (int(data[7])/1000.0))
+            print('\n')
+            
+            # write data into table
+            c = conn.cursor()
+            insert_stmt = insert_stmt_stem % (data[1], int(data[2]), int(data[3])/1.0, int(data[4])/256.0, int(data[5])/100.0, int(data[6])/10000.0, int(data[7])/1000.0)
+            c.execute(insert_stmt)
+            conn.commit()
+        
+            if send_to_adafruit:
+                aio.send('rssi', int(data[2]))
+                aio.send('cpu_temp', int(data[3])/1.0)
+                aio.send('battery_volt', int(data[4])/256.0) 
+                aio.send('temp', int(data[5])/100.0)
+                aio.send('pressure', int(data[6])/10000.0)
+                aio.send('humidity', int(data[7])/1000.0)
+        except Exception as e:
+            print('Oops, exception: ')
+            print( e )    
+
+if __name__ == "__main__":
+    main()
 
 
